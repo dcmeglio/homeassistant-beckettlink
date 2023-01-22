@@ -3,7 +3,7 @@
   "name": "Beckettlink",
   "version": "1.0.0",
   "config_flow": true,
-  "documentation": "https://www.home-assistant.io/integrations/beckettlink",
+  "documentation": "https://github.com/dcmeglio/homeassistant-beckettlink",
   "requirements": [
     "aioayla==1.0.1"
   ],
