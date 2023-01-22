@@ -31,7 +31,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self):
         """Initialize the config flow."""
-        self._api = AylaApi(APP_ID, APP_SECRET, get_async_client(self.hass))
+        super().__init__()
+        self._api: AylaApi = None
         self._sensors = {}
         self.data = None
 
@@ -42,6 +43,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step."""
         if user_input is None:
+            self._api = AylaApi(APP_ID, APP_SECRET, get_async_client(self.hass))
             return self.async_show_form(
                 step_id="user", data_schema=STEP_USER_DATA_SCHEMA
             )
