@@ -1,3 +1,4 @@
+import math
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS, UnitOfVolume
@@ -121,7 +122,152 @@ class BeckettLinkTankSensorEntity(SensorEntity, CoordinatorEntity):
                 PROPERTY_SIGNAL_STRENGTH
             ]
         elif self._device_type == "tank_level":
-            self._attr_native_value = self.coordinator.data[self._device.dsn][
-                PROPERTY_TANK_LEVEL
-            ]
+            self._attr_native_value = self._calculate_tank_level(
+                self.coordinator.data[self._device.dsn][PROPERTY_TANK_LEVEL]
+            )
         self.async_write_ha_state()
+
+    def _calculate_tank_level(self, dsn, distance) -> float:
+        tank_shape = self._coordinator._device_data[dsn]["TankShape"]
+        tank_width = self._coordinator._device_data[dsn]["TankWidth"]
+        tank_length = self._coordinator._device_data[dsn]["TankLength"]
+        tank_height = self._coordinator._device_data[dsn]["TankHeight"]
+        tank_manifolds = self._coordinator._device_data[dsn]["TankManifold"]
+        match tank_shape:
+            case "Rectangle":
+                result = self._calculate_rectangle_tank_level(
+                    tank_height, tank_width, tank_length, distance
+                )
+                pass
+            case "Vertical_Obround":
+                result = self._calculate_vertical_obround_tank_level(
+                    tank_height, tank_width, tank_length, distance
+                )
+            case "Horizontal_Obround":
+                result = self._calculate_horizontal_obround_tank_level(
+                    tank_height, tank_width, tank_length, distance
+                )
+            case "Vertical_Cylinder":
+                result = self._calculate_vertical_cylinder_tank_level(
+                    tank_height, tank_width, distance
+                )
+            case "Horizontal_Cylinder":
+                result = self._calculate_horizontal_cylinder_tank_level(
+                    tank_height, tank_length, distance
+                )
+            case "Granby":
+                result = self._calculate_granby_tank_level(
+                    tank_height, tank_length, tank_width, distance
+                )
+        return (result * tank_manifolds) / 231
+
+    def _calculate_rectangle_tank_level(self, height, width, length, distance) -> float:
+        return length * width * min(max(height + 3.565 - distance, 0), height)
+
+    def _calculate_vertical_cylinder_tank_level(self, height, width, distance) -> float:
+        mid_width = width / 2
+        measurement = min(max(height + 1.37 - distance, 0), height)
+        return math.pi * measurement * (mid_width**2)
+
+    def _calculate_horizontal_cylinder_tank_level(
+        self, height, length, distance
+    ) -> float:
+        mid_height = height / 2
+        measurement = min(max(height + 1.37 - distance, 0), height)
+        length * ((mid_height**2) * math.acos(mid_height - measurement))
+
+        length * (
+            (mid_height**2) * math.acos((mid_height - measurement) / mid_height)
+            - (mid_height - measurement)
+            * math.sqrt(2 * mid_height * measurement - (measurement**2))
+        )
+        return
+
+    def _calculate_horizontal_obround_tank_level(
+        self, height, length, width, distance
+    ) -> float:
+        mid_height = height / 2
+        width_height_diff = width - height
+        calculation = min(max(height + 1.37 - distance, 0), height)
+        return (
+            length
+            * (
+                mid_height
+                * mid_height
+                * math.acos((mid_height - calculation) / mid_height)
+                - (mid_height - calculation)
+                * math.sqrt(2 * mid_height * calculation - calculation**2)
+            )
+            + length * width_height_diff * calculation
+        )
+
+    def _calculate_vertical_obround_tank_level(
+        self, height, length, width, distance
+    ) -> float:
+        mid_width = width / 2
+        height_width_diff = height - width
+        calculation = min(max(height + 1.37 - distance, 0), height)
+        measurement = 0
+        multiplier = 0
+        if calculation < mid_width:
+            measurement = calculation
+            multiplier = 0
+        else:
+            if calculation < height_width_diff + mid_width:
+                measurement = mid_width
+                multiplier = calculation - mid_width
+            else:
+                measurement = calculation - height_width_diff
+                multiplier = height_width_diff
+        return (
+            length
+            * (
+                mid_width**2 * math.acos((mid_width - measurement) / mid_width)
+                - (mid_width - measurement)
+                * math.sqrt(2 * mid_width * measurement - measurement**2)
+            )
+            + length * width * multiplier
+        )
+
+    def _calculate_granby_tank_level(self, height, length, width, distance) -> float:
+        calculation1 = 0
+        calculation2 = 0
+        mid_width = width / 2
+        length_point = 0.215 * length
+        width_point = 0.375 * width
+        height_width_diff = height - 2 * width_point
+        length_offset = length - 2 * length_point
+        distance_from_top = min(max(height - distance, 0), height)
+        if distance_from_top < width_point:
+            calculation1 = distance_from_top
+            calculation2 = 0
+        else:
+            if distance_from_top < height_width_diff + width_point:
+                calculation1 = width_point
+                calculation2 = distance_from_top - width_point
+            else:
+                calculation1 = distance_from_top - height_width_diff
+                calculation2 = height_width_diff
+        radial_measurement = math.pi * mid_width * length_point * calculation2
+        volumetric_calculation1 = length_offset * (
+            mid_width
+            * width_point
+            * math.acos((width_point - calculation1) / width_point)
+            - (width_point - calculation1)
+            * math.sqrt(2 * width_point * calculation1 - calculation1 * calculation1)
+        )
+
+        volumetric_calculation2 = (
+            (3 * width_point - calculation1)
+            * (math.pi * mid_width * length_point * calculation1**2)
+        ) / (3 * width_point**2)
+        volumetric_calculation3 = length_offset * width * calculation2
+
+        return max(
+            radial_measurement
+            + volumetric_calculation1
+            + volumetric_calculation2
+            + volumetric_calculation3
+            + -808.5,
+            0,
+        )

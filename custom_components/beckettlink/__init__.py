@@ -67,6 +67,7 @@ class BeckettlinkCoordinator(DataUpdateCoordinator):
         self.hass: HomeAssistant = hass
         self.entry = entry
         self._device_properties: dict[str, dict[str, str]] = {}
+        self._device_data = dict[str, dict[str, str]] = {}
         self._sensors: AylaDevice = None
         self._device_lock = asyncio.Lock()
 
@@ -84,6 +85,8 @@ class BeckettlinkCoordinator(DataUpdateCoordinator):
                     for sensor in self._sensors:
                         properties = await sensor.get_properties()
                         self._device_properties[sensor.dsn] = properties
+                        data = await sensor.get_data()
+                        self._device_data[sensor.dsn] = data
                 except AylaAccessError:
                     await self.entry.async_start_reauth(self.hass)
             return self._sensors
@@ -92,6 +95,13 @@ class BeckettlinkCoordinator(DataUpdateCoordinator):
         """Retrieve the properties for a given sensor."""
         if sensor_id in self._device_properties:
             return self._device_properties[sensor_id]
+        else:
+            return {}
+
+    def get_sensor_data(self, sensor_id: str) -> dict[str, str]:
+        """Retrieve the data for a given sensor."""
+        if sensor_id in self._device_properties:
+            return self._device_data[sensor_id]
         else:
             return {}
 
