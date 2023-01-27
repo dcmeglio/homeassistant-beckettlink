@@ -67,7 +67,7 @@ class BeckettlinkCoordinator(DataUpdateCoordinator):
         self.hass: HomeAssistant = hass
         self.entry = entry
         self._device_properties: dict[str, dict[str, str]] = {}
-        self._device_data = dict[str, dict[str, str]] = {}
+        self._device_data: dict[str, dict[str, str]] = {}
         self._sensors: AylaDevice = None
         self._device_lock = asyncio.Lock()
 

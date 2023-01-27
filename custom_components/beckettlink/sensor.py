@@ -122,30 +122,29 @@ class BeckettLinkTankSensorEntity(SensorEntity, CoordinatorEntity):
                 PROPERTY_SIGNAL_STRENGTH
             ]
         elif self._device_type == "tank_level":
-            self._attr_native_value = self._calculate_tank_level(
-                self.coordinator.data[self._device.dsn][PROPERTY_TANK_LEVEL]
+            self._attr_native_value = self._calculate_tank_level(self._device.dsn,                self.coordinator.data[self._device.dsn][PROPERTY_TANK_LEVEL]
             )
         self.async_write_ha_state()
 
     def _calculate_tank_level(self, dsn, distance) -> float:
+        distance /= 10
         tank_shape = self._coordinator._device_data[dsn]["TankShape"]
-        tank_width = self._coordinator._device_data[dsn]["TankWidth"]
-        tank_length = self._coordinator._device_data[dsn]["TankLength"]
-        tank_height = self._coordinator._device_data[dsn]["TankHeight"]
-        tank_manifolds = self._coordinator._device_data[dsn]["TankManifold"]
+        tank_width = int(self._coordinator._device_data[dsn]["TankWidth"])
+        tank_length = int(self._coordinator._device_data[dsn]["TankLength"])
+        tank_height = int(self._coordinator._device_data[dsn]["TankHeight"])
+        tank_manifolds = int(self._coordinator._device_data[dsn]["TankManifold"])
         match tank_shape:
             case "Rectangle":
                 result = self._calculate_rectangle_tank_level(
-                    tank_height, tank_width, tank_length, distance
+                    tank_height, tank_length, tank_width, distance
                 )
-                pass
             case "Vertical_Obround":
                 result = self._calculate_vertical_obround_tank_level(
-                    tank_height, tank_width, tank_length, distance
+                    tank_height, tank_length, tank_width, distance
                 )
             case "Horizontal_Obround":
                 result = self._calculate_horizontal_obround_tank_level(
-                    tank_height, tank_width, tank_length, distance
+                    tank_height, tank_length, tank_width, distance
                 )
             case "Vertical_Cylinder":
                 result = self._calculate_vertical_cylinder_tank_level(
@@ -159,7 +158,8 @@ class BeckettLinkTankSensorEntity(SensorEntity, CoordinatorEntity):
                 result = self._calculate_granby_tank_level(
                     tank_height, tank_length, tank_width, distance
                 )
-        return (result * tank_manifolds) / 231
+        return round((result * tank_manifolds) / 231,2)
+
 
     def _calculate_rectangle_tank_level(self, height, width, length, distance) -> float:
         return length * width * min(max(height + 3.565 - distance, 0), height)
@@ -174,14 +174,13 @@ class BeckettLinkTankSensorEntity(SensorEntity, CoordinatorEntity):
     ) -> float:
         mid_height = height / 2
         measurement = min(max(height + 1.37 - distance, 0), height)
-        length * ((mid_height**2) * math.acos(mid_height - measurement))
 
-        length * (
+
+        return length * (
             (mid_height**2) * math.acos((mid_height - measurement) / mid_height)
             - (mid_height - measurement)
             * math.sqrt(2 * mid_height * measurement - (measurement**2))
         )
-        return
 
     def _calculate_horizontal_obround_tank_level(
         self, height, length, width, distance
